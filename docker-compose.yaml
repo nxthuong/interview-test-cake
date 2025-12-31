@@ -285,6 +285,9 @@ services:
         echo "Files in shared volumes:"
         echo
         ls -la /opt/airflow/{logs,dags,plugins,config}
+        echo "Import connections:"
+        echo
+        /entrypoint airflow connections import --overwrite /opt/airflow/config/connections.json
 
     # yamllint enable rule:line-length
     environment:

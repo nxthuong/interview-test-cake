@@ -37,3 +37,5 @@ What We Assess
 ```
 
 ## System setup
+
+**NOTE:** For easy setup, some sensitive informations are included in the source code.

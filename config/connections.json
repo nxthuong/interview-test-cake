@@ -1,0 +1,22 @@
+{
+  "sftp-dest": {
+    "conn_type": "ftp",
+    "description": null,
+    "login": "user-dest",
+    "password": "passDest",
+    "host": "interview-test-cake-sftp-dest-1",
+    "port": null,
+    "schema": null,
+    "extra": null
+  },
+  "sftp-src": {
+    "conn_type": "ftp",
+    "description": null,
+    "login": "user-src",
+    "password": "passSrc",
+    "host": "interview-test-cake-sftp-src-1",
+    "port": null,
+    "schema": null,
+    "extra": null
+  }
+}
