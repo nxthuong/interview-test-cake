@@ -4,6 +4,7 @@ ensures the preservation of the original directory structure.
 The synchronization process is unidirectional.
 """
 
+import os
 import stat
 
 import paramiko
@@ -12,6 +13,7 @@ from airflow.models.connection import Connection
 from airflow.models.dagrun import DagRun
 from airflow.sdk import DAG, task
 from airflow.sdk.execution_time.context import ConnectionAccessor
+from paramiko.sftp_client import SFTPClient
 
 with DAG(
     dag_id="sftp2sftp",
@@ -54,21 +56,21 @@ with DAG(
         )
 
         # Get changed files
-        def _walk(path: str):
+        def _walk(sftp_client: SFTPClient, path: str):
             try:
                 for item in sftp_client.listdir_attr(path):
                     name = item.filename
                     full = f"{path}/{name}"
-                    if stat.S_ISDIR(item.st_mode) and not stat.S_ISLNK(item.st_mode):
-                        yield from _walk(full)
-                    else:
+                    if stat.S_ISDIR(item.st_mode):
+                        yield from _walk(sftp_client=sftp_client, path=full)
+                    elif stat.S_ISREG(item.st_mode):
                         yield full, item
             except IOError:
                 pass
 
         changed_files: list[str] = []
         with client.open_sftp() as sftp_client:
-            for full, item in _walk("upload"):
+            for full, item in _walk(sftp_client=sftp_client, path="/upload"):
                 if start_ts <= int(item.st_mtime) <= end_ts:
                     changed_files.append(full)
 
@@ -82,7 +84,7 @@ with DAG(
         :param files: List of absolute file paths
         :type files: list[str]
         """
-        # Get SFTP connection
+        # Get SFTP connections
         conn_accessor: ConnectionAccessor = kwargs["conn"]
         conn_sftp_src: Connection = conn_accessor.get(conn_id="sftp-src")
         conn_sftp_dest: Connection = conn_accessor.get(conn_id="sftp-dest")
@@ -103,10 +105,43 @@ with DAG(
         )
 
         # Transfer files from source to destination
+        def _mkdir_p(sftp_client: SFTPClient, remote_directory: dict):
+            """
+            Creates a remote directory recursively, like 'mkdir -p'.
+            """
+            dirs = []
+            head, tail = os.path.split(remote_directory)
+
+            while head and tail:
+                dirs.append(tail)
+                head, tail = os.path.split(head)
+
+            dirs.append(head)
+            dirs.reverse()
+
+            path = ""
+            for segment in dirs:
+                if segment == "":
+                    path = "/"
+                    continue
+                path = os.path.join(path, segment)
+                try:
+                    sftp_client.stat(path)
+                except FileNotFoundError:
+                    print(f"Creating directory: {path}")
+                    sftp_client.mkdir(path)
+                except IOError as e:
+                    print(f"Error checking/creating directory {path}: {e}")
+                    raise
+
         with client_src.open_sftp() as sftp_client_src:
             with client_dest.open_sftp() as sftp_client_dest:
                 for file in files:
                     print(f"Transferring: {file} ...")
+                    _mkdir_p(
+                        sftp_client=sftp_client_dest,
+                        remote_directory=os.path.dirname(file),
+                    )
                     with sftp_client_dest.open(file, "w+") as writer:
                         sftp_client_src.getfo(file, writer)
 
