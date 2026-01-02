@@ -71,7 +71,9 @@ with DAG(
         changed_files: list[str] = []
         with client.open_sftp() as sftp_client:
             for full, item in _walk(sftp_client=sftp_client, path="/upload"):
-                if start_ts <= int(item.st_mtime) <= end_ts:
+                if (start_ts <= int(item.st_mtime) <= end_ts) or (
+                    start_ts <= int(item.st_atime) <= end_ts
+                ):
                     changed_files.append(full)
 
         return changed_files
