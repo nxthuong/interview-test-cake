@@ -36,6 +36,35 @@ What We Assess
     Your strategy for handling anomalies. For instance, if file sizes increase dramatically from kilobytes to gigabytes, how does your solution accommodate this change in scale?
 ```
 
-## System setup
+## How-to Guides
 
 **NOTE:** For easy setup, some sensitive informations are included in the source code.
+
+### 1. Setup and Run
+This project contains Airflow services and SFTP services defined in [Docker Compose file](./docker-compose.yaml).
+
+The [start.sh](./start.sh) script will help to prepare the environment and start all services.
+
+To start the project, execute the `start.sh` script:
+```bash
+bash start.sh
+```
+
+After all docker containers sucessfuly started, you can access Airflow UI at [http://localhost:8080](http://localhost:8080) with `Username: airflow` and `Password: airflow`.
+
+### 2. Test the `sftp2sftp` DAG
+The `sftp2sftp` DAG is designed to run every 5 mins and transfers all the changed files within last 5 mins from SFTP source server to SFTP target server.
+
+The files on source and target SFTP servers are mounted to the docker host at `sftp_src/upload` and `sftp_dest/upload` respectively.
+
+After enable the DAG via Airflow UI, we can test it by updating files in `sftp_src/upload` folder and observe the changes in `sftp_dest/upload`.
+
+### 3. Assumptions made and decisions taken
+- On the first of the DAG, it will transfer all files on source server to target server.
+- On the sub-sequence runs, it will only transfer files added or modified since last successful run upto the start interval of the current run.
+- The `transfer` task perform file transfer directly from source to target SFTP server, eliminate the need of download file to local storage and upload it to target.
+This approach greatly reduce the latency and cost of running this DAG.
+- For the requirement of adapting the source server from SFTP to Object Storage, I would rather implement another DAG for the benefit of optimazation and simplicity.
+- For the requirement of additional transformations before loading files into the target system, I need more details before implementing it:
+    - what kind of data we are handling (CSV, Parquet, JSON, etc.)
+    - how data need to be processed (aggregate, add new fields, normalize fields, etc.)
